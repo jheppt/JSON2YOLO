@@ -260,11 +260,17 @@ def convert_coco_json(json_dir="../coco/annotations/", use_segments=False, cls91
 
     # Import json
     for json_file in sorted(Path(json_dir).resolve().glob("*.json")):
-        fn = Path(save_dir) / "labels" / json_file.stem.replace("instances_", "")  # folder name
-        fn.mkdir()
+        fn = Path(save_dir) / "labels"
+        fn.mkdir(exist_ok=True, parents=True)
         with open(json_file) as f:
             data = json.load(f)
 
+        # write _darknet.labels, which holds names of all classes (one class per line)
+        label_file = os.path.join(save_dir, "epilld.labels")
+        with open(label_file, "w") as f:
+            for category in tqdm(data["categories"], desc="Categories"):
+                category_name = category["name"]
+                f.write(f"{category_name}\n")
         # Create image dict
         images = {"%g" % x["id"]: x for x in data["images"]}
         # Create image-annotations dict
@@ -289,8 +295,16 @@ def convert_coco_json(json_dir="../coco/annotations/", use_segments=False, cls91
                 box[[1, 3]] /= h  # normalize y
                 if box[2] <= 0 or box[3] <= 0:  # if w <= 0 and h <= 0
                     continue
-
-                cls = coco80[ann["category_id"] - 1] if cls91to80 else ann["category_id"] - 1  # class
+                #cls = coco80[ann["category_id"] - 1] if cls91to80 else ann["category_id"] - 1  # class
+                category_id = ann["category_id"] - 1
+                if cls91to80:
+                    if category_id < len(coco80):
+                        cls = coco80[category_id]
+                    else:
+                        print(f"Warning: Category {category_id} is out of range!")
+                        continue  # Skip if category_id is out of range
+                else:
+                    cls = category_id
                 box = [cls] + box.tolist()
                 if box not in bboxes:
                     bboxes.append(box)
@@ -307,10 +321,15 @@ def convert_coco_json(json_dir="../coco/annotations/", use_segments=False, cls91
                         segments.append(s)
 
             # Write
-            with open((fn / f).with_suffix(".txt"), "a") as file:
+            # modify the path without segmented_nih_pills_224
+            f = f.replace("segmented_nih_pills_224/", "")
+            with open((fn / f).with_suffix(".txt"), "x") as file:
                 for i in range(len(bboxes)):
                     line = (*(segments[i] if use_segments else bboxes[i]),)  # cls, box or segments
-                    file.write(("%g " * len(line)).rstrip() % line + "\n")
+                    #    file.write(("%g " * len(line)).rstrip() % line + "\n")
+                    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+                    # TypeError: must be real number, not NoneType
+                    file.write(" ".join([str(x) for x in line]) + "\n")
 
 
 def min_index(arr1, arr2):
@@ -391,9 +410,9 @@ if __name__ == "__main__":
 
     if source == "COCO":
         convert_coco_json(
-            "../datasets/coco/annotations",  # directory with *.json
+            "./",  # directory with *.json
             use_segments=True,
-            cls91to80=True,
+            cls91to80=False,
         )
 
     elif source == "infolks":  # Infolks https://infolks.info/

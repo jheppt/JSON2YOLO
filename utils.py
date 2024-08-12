@@ -71,7 +71,7 @@ def split_indices(x, train=0.9, test=0.1, validate=0.0, shuffle=True):  # split 
     return v[:i], v[i:j], v[j:k]  # return indices
 
 
-def make_dirs(dir="new_dir/"):
+def make_dirs(dir="YOLO/"):
     """Creates a directory with subdirectories 'labels' and 'images', removing existing ones."""
     dir = Path(dir)
     if dir.exists():
