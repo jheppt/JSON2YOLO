@@ -1,5 +1,6 @@
 import contextlib
 import json
+import subprocess
 from collections import defaultdict
 
 import cv2
@@ -253,9 +254,29 @@ def convert_ath_json(json_dir):  # dir contains json annotations and images
     print(f"Done. Output saved to {Path(dir).absolute()}")
 
 
+def zip_results(source_dir, output_zip):
+    # Hole die Gesamtzahl der Dateien für die Fortschrittsanzeige
+    total_files = sum([len(files) for _, _, files in os.walk(source_dir)])
+
+    # Kommando zum Zipping
+    command = ['zip', '-r', output_zip, source_dir]
+
+    # Starte den Zipping-Prozess
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    with tqdm(total=total_files, unit='file') as pbar:
+        for line in process.stdout:
+            # Aktualisiere die Fortschrittsanzeige für jede Datei
+            if line.startswith('  adding:'):
+                pbar.update(1)
+
+    process.wait()
+
+
 def convert_coco_json(json_dir="../coco/annotations/", use_segments=False, cls91to80=False):
     """Converts COCO JSON format to YOLO label format, with options for segments and class mapping."""
-    save_dir = make_dirs()  # output directory
+    use_segments_str = "segments" if use_segments else "bboxes"
+    save_dir = make_dirs(f"YOLO_{use_segments_str}")  # output directory
     coco80 = coco91_to_coco80_class()
 
     # Import json
@@ -331,6 +352,9 @@ def convert_coco_json(json_dir="../coco/annotations/", use_segments=False, cls91
                     # TypeError: must be real number, not NoneType
                     file.write(" ".join([str(x) for x in line]) + "\n")
 
+    # zip results
+    zip_results(source_dir=save_dir, output_zip=f"{save_dir}.zip")
+
 
 def min_index(arr1, arr2):
     """
@@ -384,7 +408,7 @@ def merge_multi_segment(segments):
                     s.append(segments[i])
                 else:
                     idx = [0, idx[1] - idx[0]]
-                    s.append(segments[i][idx[0] : idx[1] + 1])
+                    s.append(segments[i][idx[0]: idx[1] + 1])
 
         else:
             for i in range(len(idx_list) - 1, -1, -1):
@@ -427,6 +451,3 @@ if __name__ == "__main__":
 
     elif source == "ath":  # ath format
         convert_ath_json(json_dir="../../Downloads/athena/")  # images folder
-
-    # zip results
-    # os.system('zip -r ../coco.zip ../coco')
